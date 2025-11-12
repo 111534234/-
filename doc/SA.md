@@ -104,7 +104,85 @@ graph TD
 
 ## 4. 系統架構 (System Architecture)
 
-(與前版相同，此處省略以求簡潔)
+本系統採用基於微服務 (Microservices) 的現代化架構，將前端與後端分離，並將後端功能拆解為多個獨立的服務。這種設計提高了系統的靈活性、可擴展性和可維護性。
+
+### 4.1. 系統架構圖
+
+```mermaid
+graph TD
+    subgraph "使用者端 (Client)"
+        User["一般使用者 / 管理員<br>(網頁瀏覽器)"]
+    end
+
+    subgraph "雲端服務 (Cloud Services)"
+        SPA[("<b>前端應用程式 (SPA)</b><br>React / Vue.js<br>提供使用者操作介面")]
+        
+        subgraph "後端系統 (Backend System)"
+            Gateway("<b>API 閘道器</b><br>Kong / Nginx<br>統一請求入口、路由、驗證")
+            
+            subgraph "微服務 (Microservices)"
+                AuthSvc("<b>使用者與驗證服務</b><br>Node.js / Express<br>處理註冊、登入、權限管理")
+                ContentSvc("<b>內容管理服務</b><br>Java / Spring Boot<br>管理景點、餐廳等資訊")
+                ItinerarySvc("<b>行程規劃服務</b><br>Python / FastAPI<br>處理行程的建立、編輯、分享")
+                SearchSvc("<b>搜尋服務</b><br>Python / FastAPI<br>提供關鍵字搜尋與篩選")
+            end
+
+            subgraph "資料儲存 (Data Stores)"
+                SQL_DB[("<b>主要資料庫</b><br>PostgreSQL / MySQL<br>儲存使用者、地點、行程等核心資料")]
+                Search_DB[("<b>搜尋引擎</b><br>Elasticsearch<br>提供高效能的全文搜尋")]
+                Cache[("<b>快取</b><br>Redis<br>快取常用資料以提升效能")]
+            end
+        end
+
+        subgraph "外部服務 (External Services)"
+            BookingAPI("<b>外部預訂平台 API</b><br>Agoda, Klook 等")
+        end
+    end
+
+    %% 連接關係
+    User --> SPA
+    SPA --> Gateway
+
+    Gateway --> AuthSvc
+    Gateway --> ContentSvc
+    Gateway --> ItinerarySvc
+    Gateway --> SearchSvc
+    Gateway --> BookingAPI
+
+    AuthSvc --> SQL_DB
+    ContentSvc --> SQL_DB
+    ItinerarySvc --> SQL_DB
+    
+    ContentSvc -- "資料同步" --> Search_DB
+    SearchSvc --> Search_DB
+
+    ContentSvc --> Cache
+    ItinerarySvc --> Cache
+```
+
+### 4.2. 元件說明
+
+-   **前端應用程式 (SPA - Single Page Application)**
+    -   **技術**: 建議使用 React 或 Vue.js 等現代 JavaScript 框架。
+    -   **職責**: 提供所有使用者互動介面，包括景點瀏覽、行程規劃以及管理員後台。它是一個獨立的應用程式，透過 API 與後端溝通。
+
+-   **API 閘道器 (API Gateway)**
+    -   **技術**: 可選用 Kong, Nginx, 或雲端服務商提供的閘道器 (如 AWS API Gateway)。
+    -   **職責**: 作為系統的單一入口點。處理所有傳入的請求，並根據路徑將其轉發到對應的微服務。此外，它還負責處理身分驗證、速率限制 (Rate Limiting) 和日誌記錄等共用功能。
+
+-   **微服務 (Microservices)**
+    -   **使用者與驗證服務**: 負責處理使用者註冊、登入、登出及 JWT (JSON Web Token) 的簽發與驗證。
+    -   **內容管理服務**: 負責所有旅遊地點資訊 (景點、餐廳、購物) 的 CRUD (新增、讀取、更新、刪除) 操作。管理員將主要與此服務互動。
+    -   **行程規劃服務**: 負責處理使用者的個人化行程，包括建立、修改、讀取、刪除行程，以及將地點加入行程中。
+    -   **搜尋服務**: 提供強大的搜尋功能。它與「搜尋引擎」互動，以實現高效的全文搜尋、篩選和排序。
+
+-   **資料儲存 (Data Stores)**
+    -   **主要資料庫 (SQL DB)**: 使用如 PostgreSQL 或 MySQL 的關聯式資料庫，儲存結構化資料，如使用者帳戶、地點詳細資訊、行程等，確保資料的完整性與一致性。
+    -   **搜尋引擎 (Search Engine)**: 使用 Elasticsearch，專門用於索引和搜尋大量文字資料。內容管理服務會將資料同步至此，以提供快速的搜尋回應。
+    -   **快取 (Cache)**: 使用 Redis 等記憶體資料庫，快取熱門地點、使用者 Session 等常用資料，以降低主資料庫負載並加速 API 回應。
+
+-   **外部服務 (External Services)**
+    -   **外部預訂平台 API**: 用於整合第三方合作夥伴（如 Agoda, Klook）的預訂功能。當使用者點擊預訂時，系統會透過 API 閘道器呼叫這些外部服務。
 
 ---
 
