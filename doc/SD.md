@@ -1,117 +1,281 @@
-# 系統設計文件 (System Design) - 韓國首爾旅行網站
+首爾旅遊網站系統設計書 3.0
+這是一份根據您的《首爾旅遊網站系統架構設計 (SA) 3.0》、Java/Spring Boot 實作技術棧，以及 XAMPP 環境（使用 MySQL 資料庫）所產出的系統設計書 (SD) 3.0。
+SD 旨在將 SA 的骨架轉化為具體的程式碼實現計畫，確保每個功能都有對應的程式邏輯、API 規格和資料庫設計。
+--------------------------------------------------------------------------------
+📘 系統設計書 (SD) 3.0：首爾旅遊網站 (Java/Spring Boot)
+1. 📋 SA 需求實作對應表 (Implementation Mapping)
+此表格將 SA 中定義的頁面和模組，對應到 Java 專案的具體檔案、API 端點及資料表，以便於程式碼生成 [1].
+SA 需求編號
+SA 頁面/模組名稱
+前端檔案 (View) (HTML/Thymeleaf)
+後端 API (Controller) (Java)
+資料表 (Entity) (MySQL)
+實作邏輯摘要
+F-1.1
+內容列表頁
+views/guide/list.html
+GET /guide/{category}
+Article
+依類別查詢文章，實作分頁與 RWD 渲染 [2, 3]
+F-1.2
+內容詳情頁
+views/article/detail.html
+GET /article/{id}
+Article, StatLog
+依 ID 查詢內容，並呼叫 StatService 記錄網頁瀏覽次數 [2]
+F-2.1
+內容管理頁 (核心)
+views/admin/content.html
+POST/PUT /admin/api/articles
+Article, Media
+支援多媒體編輯、多圖上傳及自動縮圖產生 [2]
+F-2.2
+數據統計頁
+views/admin/stats.html
+GET /admin/api/stats/summary
+StatLog
+查詢並彙整瀏覽次數與 Banner 點擊次數報表 [2]
+F-2.3
+Banner 管理頁
+views/admin/banner.html
+POST/PUT /admin/api/banners
+Banner
+Banner 的 CRUD 操作，並記錄點擊連結 [2]
+F-3.1
+管理員登入頁
+views/admin/login.html
+POST /admin/login
+AdminUser
+使用 Spring Security 進行身分驗證 [2]
+NFR-1.3
+雙語系切換
+(所有頁面)
+(無獨立 API)
+(無)
+使用 Spring Boot 國際化資源檔 (messages_zh_TW.properties, messages_en.properties) 實現 [4]
+2. 🧩 模組詳細實作規格 (Module Realization Specs)
+此處針對專案中最核心的兩個功能——內容詳情頁及數據統計——進行詳細設計，作為 Java/Spring Boot 程式碼實現的依據 [5]。
+規格 I: 內容詳情頁與瀏覽統計 (F-1.2)
+此規格實作 REQ 中「訪客瀏覽內容」及「必須統計網頁瀏覽次數」的要求 [6], [2]。
+A. 相關類別與方法 (Class Design)
+使用 Spring Boot 標準的 Controller-Service-Repository 分層架構 [3], [7]。
+classDiagram
+direction RL
+class ArticleController {
+    +getArticleDetail(@PathVariable id) String
+}
+class ArticleService {
+    +findById(Long id) ArticleDTO
+}
+class StatService {
+    +logPageView(Long articleId) void
+}
+class ArticleRepository {
+    +findById(Long id) Optional~Article~
+}
+class StatRepository {
+    +save(StatLog log) StatLog
+}
+ArticleController --&gt; ArticleService
+ArticleController --&gt; StatService
+ArticleService --&gt; ArticleRepository
+StatService --&gt; StatRepository
 
-## 1. 總覽 (Overview)
+B. 詳細 API 規格 (Detailed API)
+• Endpoint: GET /article/{id}
+• 用途: 取得單篇文章詳情，並同時觸發瀏覽次數計數。
+• Input (Request):
+    ◦ Path Variable: id (Long, 文章 ID)。
+• Output (Model Attribute):
+    ◦ Key: article
+    ◦ Value Type: ArticleDTO (包含 id, title, content_html, mediaList, viewCount 等屬性)。
+C. 實作邏輯步驟 (Implementation Logic)
+詳述訪客瀏覽景點詳情，觸發數據追蹤的後端流程 [8], [9]。
+sequenceDiagram
+    participant Client as 瀏覽器
+    participant Ctl as ArticleController
+    participant ArtSvc as ArticleService
+    participant StatSvc as StatService
+    participant DB as Database (MySQL)
 
-本文件基於軟體架構 (SA) 文件，進一步詳細闡述系統的具體設計。內容包含系統的架構圖、各模組的詳細職責，以及資料庫的綱要設計，作為開發團隊實作的技術藍圖。
+    Client-&gt;&gt;Ctl: 1. GET /article/{id} (請求文章詳情)
 
----
+    Ctl-&gt;&gt;ArtSvc: 2. 呼叫 findById(id)
+    ArtSvc-&gt;&gt;DB: 3. SELECT * FROM article WHERE id = {id}
+    DB--&gt;&gt;ArtSvc: 4. 回傳 Article 實體
 
-## 2. 系統架構圖 (System Architecture Diagram)
+    Ctl-&gt;&gt;StatSvc: 5. 呼叫 logPageView(id)
+    StatSvc-&gt;&gt;StatSvc: 6. 構造 StatLog 實體 (type=VIEW, target_id=id, timestamp=NOW)
+    StatSvc-&gt;&gt;DB: 7. INSERT INTO stat_log (type, target_id, ...)
 
-本圖採 C4 模型中的容器圖 (Container Diagram) 風格，展示系統的主要建構區塊 (應用程式、資料庫) 及其互動關係。
+    DB--&gt;&gt;StatSvc: 8. 確認寫入成功
+    StatSvc--&gt;&gt;Ctl: 9. 成功記錄
 
-```mermaid
-C4Container
-    !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+    Ctl-&gt;&gt;Ctl: 10. model.addAttribute("article", dto)
+    Ctl--&gt;&gt;Client: 11. 回傳 detail.html (Thymeleaf 渲染)
 
-    Person(user, "一般使用者", "規劃行程的旅客")
-    Person(admin, "管理員", "維護網站內容")
+規格 II: 內容管理與縮圖生成 (F-2.1)
+此規格涵蓋管理員上傳多圖、編輯內容，並觸發「自動產生縮圖」的核心業務邏輯 [2], [3]。
+A. 相關類別與方法 (Class Design)
+classDiagram
+direction RL
+class ContentController {
+    +saveArticle(@ModelAttribute articleForm) String
+}
+class ContentService {
+    +save(ArticleForm form) Long
+}
+class ImageProcessorService {
+    +generateThumbnail(MultipartFile file) String
+}
+class ArticleRepository {
+    +save(Article entity) Article
+}
+ContentController --&gt; ContentService
+ContentService --&gt; ArticleRepository
+ContentService --&gt; ImageProcessorService
 
-    System_Boundary(web_system, "首爾旅行網站系統") {
-        Container(frontend, "前端應用", "React.js, SPA", "提供所有使用者介面")
-        Container(backend, "後端應用", "Java, Spring Boot, REST API", "處理業務邏輯與資料存取")
-        ContainerDb(database, "資料庫", "PostgreSQL", "儲存所有應用程式資料")
+B. 詳細 API 規格 (Detailed API)
+• Endpoint: POST /admin/api/articles
+• 用途: 管理員提交新增或編輯後的文章內容。
+• Input (Request):
+    ◦ Request Body (@ModelAttribute): ArticleForm (包含 title, category, content_html, files (MultipartFile List) 等)。
+3. 🗄️ 資料庫詳細設計 (Detailed Schema)
+採用 MySQL 資料庫，定義核心實體 (Entity) 的結構和資料型態 [9]。
+A. 核心實體結構表
+資料表名稱
+欄位名稱
+資料型態 (MySQL)
+是否為 Null
+備註
+Article (文章)
+article_id
+INT
+N
+PK，主鍵
+title_zh
+VARCHAR(255)
+N
+繁中標題 (支援雙語系)
+title_en
+VARCHAR(255)
+Y
+英文標題
+category
+VARCHAR(50)
+N
+內容分類 (如: 美食探索, 交通方式)
+content_html
+TEXT
+Y
+文章內容 (支援 HTML 編輯)
+view_count
+INT
+N
+網頁瀏覽次數 (可預先計入)
+status
+VARCHAR(10)
+N
+狀態 (UP/DOWN)
+created_at
+DATETIME
+N
+建立時間
+Banner (輪播圖)
+banner_id
+INT
+N
+PK，主鍵
+image_url
+VARCHAR(512)
+N
+圖片儲存路徑
+target_url
+VARCHAR(512)
+N
+點擊後導向連結
+click_count
+INT
+N
+Banner 點擊次數
+StatLog (統計日誌)
+log_id
+BIGINT
+N
+PK，主鍵
+log_type
+VARCHAR(20)
+N
+日誌類型 (PAGE_VIEW / BANNER_CLICK)
+target_id
+INT
+N
+對應的文章 ID 或 Banner ID
+log_time
+DATETIME
+N
+發生時間
+ip_address
+VARCHAR(50)
+Y
+訪客 IP 地址 (用於基礎去重/分析)
+Media (媒體檔案)
+media_id
+BIGINT
+N
+PK，主鍵
+article_id
+INT
+Y
+FK，對應文章 ID
+file_path
+VARCHAR(512)
+N
+原始檔案路徑
+thumbnail_path
+VARCHAR(512)
+Y
+自動產生縮圖路徑
+file_type
+VARCHAR(20)
+N
+檔案類型 (Image/Video/Attachment)
+B. 實體關係圖 (ERD)
+erDiagram
+    ARTICLE ||--o{ MEDIA : has
+    ARTICLE ||--o{ STAT_LOG : logs
+    BANNER ||--o{ STAT_LOG : logs
+
+    ARTICLE {
+        int article_id PK
+        varchar title_zh
+        varchar title_en
+        varchar category
+        text content_html
+        int view_count
+        varchar status
+        datetime created_at
     }
 
-    Rel(user, frontend, "使用", "HTTPS")
-    Rel(admin, frontend, "使用", "HTTPS")
+    BANNER {
+        int banner_id PK
+        varchar image_url
+        varchar target_url
+        int click_count
+    }
 
-    Rel(frontend, backend, "發送 API 請求", "HTTPS, JSON")
+    STAT_LOG {
+        bigint log_id PK
+        varchar log_type
+        int target_id FK
+        datetime log_time
+        varchar ip_address
+    }
 
-    Rel(backend, database, "讀取/寫入資料", "JDBC")
-```
-
-**架構說明**:
-- **使用者 (一般使用者/管理員)**: 透過網頁瀏覽器與「前端應用」互動。
-- **前端應用 (React SPA)**: 是一個單頁應用程式，負責呈現介面並回應使用者操作。它透過 HTTPS 向「後端應用」發送 API 請求來處理資料。
-- **後端應用 (Spring Boot API)**: 核心業務邏輯層。它提供 RESTful API 給前端使用，並透過 JDBC (Java Database Connectivity) 協議與「資料庫」溝通。
-- **資料庫 (PostgreSQL)**: 負責永久儲存所有資料，如使用者、地點、行程等。
-
----
-
-## 3. 模組職責 (Module Responsibilities)
-
-### 3.1. 前端應用 (Frontend Application)
-- **技術**: React.js
-- **職責**:
-  - **介面渲染 (UI Rendering)**: 根據從後端獲取的資料，動態產生並顯示頁面。
-  - **使用者互動 (User Interaction)**: 處理使用者的點擊、輸入、表單提交等行為。
-  - **狀態管理 (State Management)**: 管理整個應用程式的狀態，例如使用者登入狀態、目前顯示的行程資料等。
-  - **路由管理 (Routing)**: 根據 URL 的變化，切換顯示不同的頁面 (例如：首頁、行程頁、登入頁)。
-  - **API 通訊 (API Communication)**: 透過 Axios 或 Fetch API 與後端進行非同步的資料交換。
-
-### 3.2. 後端應用 (Backend Application)
-- **技術**: Java, Spring Boot
-- **職責**:
-  - **API 端點 (API Endpoints)**: 設計並實作 RESTful API，供前端呼叫。例如 `/api/users`, `/api/locations`, `/api/itineraries`。
-  - **使用者驗證與授權 (Authentication & Authorization)**: 處理使用者註冊、登入，並使用 JWT (JSON Web Tokens) 或 Session 來驗證使用者身份與角色權限。
-  - **業務邏輯 (Business Logic)**: 實作核心功能，例如建立行程、將景點加入行程、管理員權限判斷等。
-  - **資料存取 (Data Access)**: 透過 Repository 模式與資料庫互動，執行資料的新增、查詢、修改、刪除 (CRUD)。
-  - **資料驗證 (Data Validation)**: 確保從前端傳來的資料符合格式要求 (例如：Email 格式、密碼長度)。
-
-### 3.3. 資料庫 (Database)
-- **技術**: PostgreSQL
-- **職責**:
-  - **資料持久化 (Data Persistence)**: 安全地儲存所有資料。
-  - **資料完整性 (Data Integrity)**: 透過主鍵 (Primary Key)、外鍵 (Foreign Key) 等約束，確保資料之間關聯的正確性。
-  - **交易管理 (Transaction Management)**: 確保一系列操作要麼全部成功，要麼全部失敗，維持資料一致性 (例如：建立行程時，需同時寫入多個表格)。
-  - **資料備份與恢復 (Backup & Recovery)**: 制定備份策略，以防資料遺失。
-
----
-
-## 4. 資料表對應 (Database Schema)
-
-以下為資料庫中各個資料表的詳細設計。
-
-### `users`
-儲存使用者與管理員的帳戶資訊。
-| 欄位名稱 | 資料型別 | 限制/約束 | 說明 |
-| :--- | :--- | :--- | :--- |
-| `user_id` | `SERIAL` | `PRIMARY KEY` | 使用者唯一識別碼 (自動遞增) |
-| `username` | `VARCHAR(50)` | `NOT NULL`, `UNIQUE` | 使用者名稱 |
-| `email` | `VARCHAR(255)` | `NOT NULL`, `UNIQUE` | 電子郵件 |
-| `password_hash` | `VARCHAR(255)` | `NOT NULL` | 加密後的密碼 |
-| `role` | `VARCHAR(20)` | `NOT NULL`, `DEFAULT 'USER'` | 角色 (USER 或 ADMIN) |
-| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | 帳號建立時間 |
-
-### `locations`
-儲存所有地點 (景點、餐廳等) 的資訊。
-| 欄位名稱 | 資料型別 | 限制/約束 | 說明 |
-| :--- | :--- | :--- | :--- |
-| `location_id` | `SERIAL` | `PRIMARY KEY` | 地點唯一識別碼 |
-| `name` | `VARCHAR(255)` | `NOT NULL` | 地點名稱 |
-| `description` | `TEXT` | | 詳細描述 |
-| `address` | `VARCHAR(255)` | | 地址 |
-| `category` | `VARCHAR(50)` | `NOT NULL` | 分類 (ATTRACTION, FOOD, SHOPPING) |
-| `latitude` | `DECIMAL(9,6)` | | 緯度 |
-| `longitude` | `DECIMAL(9,6)` | | 經度 |
-| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | 資料建立時間 |
-| `updated_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | 資料最後更新時間 |
-
-### `itineraries`
-儲存使用者建立的行程基本資訊。
-| 欄位名稱 | 資料型別 | 限制/約束 | 說明 |
-| :--- | :--- | :--- | :--- |
-| `itinerary_id` | `SERIAL` | `PRIMARY KEY` | 行程唯一識別碼 |
-| `user_id` | `INTEGER` | `NOT NULL`, `FOREIGN KEY (users.user_id)` | 所屬使用者的 ID |
-| `name` | `VARCHAR(255)` | `NOT NULL` | 行程名稱 |
-| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | 建立時間 |
-
-### `itinerary_items`
-儲存行程中包含的地點，以及其順序。
-| 欄位名稱 | 資料型別 | 限制/約束 | 說明 |
-| :--- | :--- | :--- | :--- |
-| `item_id` | `SERIAL` | `PRIMARY KEY` | 項目唯一識別碼 |
-| `itinerary_id` | `INTEGER` | `NOT NULL`, `FOREIGN KEY (itineraries.itinerary_id)` | 所屬行程的 ID |
-| `location_id` | `INTEGER` | `NOT NULL`, `FOREIGN KEY (locations.location_id)` | 對應地點的 ID |
-| `item_order` | `INTEGER` | `NOT NULL` | 地點在行程中的順序 |
+    MEDIA {
+        bigint media_id PK
+        int article_id FK
+        varchar file_path
+        varchar thumbnail_path
+        varchar file_type
+    }

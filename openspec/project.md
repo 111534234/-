@@ -1,22 +1,23 @@
 # Project Context
 
 ## Purpose
-[Describe your project's purpose and goals]
+This is a simple Java project built with Gradle. The main application class is `org.example.Main`, which prints a welcome message and a short loop. The project is configured to use JUnit 5 for testing.
 
 ## Tech Stack
-- [List your primary technologies]
-- [e.g., TypeScript, React, Node.js]
+- Java
+- Gradle
+- JUnit 5
 
 ## Project Conventions
 
 ### Code Style
-[Describe your code style preferences, formatting rules, and naming conventions]
+The project follows the standard Gradle project structure. Source code is located in `src/main/java`. Tests are located in `src/test/java`. Dependencies are managed in `build.gradle`.
 
 ### Architecture Patterns
 [Document your architectural decisions and patterns]
 
 ### Testing Strategy
-[Explain your testing approach and requirements]
+Tests are run using `./gradlew test`.
 
 ### Git Workflow
 [Describe your branching strategy and commit conventions]

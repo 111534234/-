@@ -1,42 +1,25 @@
-# Spec: Spot Information
-
-This spec defines the requirements for browsing and searching for travel spots.
-
 ## ADDED Requirements
 
-### Requirement: View a List of Spots
+### Requirement: The system MUST support a content management system for travel information.
 
-Users must be able to see a list of travel spots like attractions, restaurants, and accommodations.
+#### Scenario: Create a New Article
+- **Given** an administrator is logged in,
+- **When** they navigate to the content management page and create a new article with text, images, and videos,
+- **Then** the article is saved and a thumbnail is generated for the images.
 
-#### Scenario: Successfully view spots
-- **Given** a user navigates to the "Explore" page,
-- **Then** they see a paginated list of travel spots,
-- **And** each spot in the list displays its name, photo, category, and average rating.
+#### Scenario: View an Article
+- **Given** a visitor is on the website,
+- **When** they click on an article,
+- **Then** the article content is displayed, and the view count for that article is incremented.
 
-### Requirement: Search for Spots
+#### Scenario: List Articles by Category
+- **Given** a visitor is on the website,
+- **When** they select a category (e.g., "Food", "Shopping"),
+- **Then** a list of articles belonging to that category is displayed.
 
-Users must be able to search for spots using keywords.
+### Requirement: The website MUST support dual languages (Traditional Chinese and English).
 
-#### Scenario: Search by keyword
-- **Given** a user is on the "Explore" page,
-- **When** they enter "palace" into the search bar and submit,
-- **Then** the list is updated to show only spots with "palace" in their name or description.
-
-### Requirement: Filter Spots
-
-Users must be able to filter the list of spots by category and location.
-
-#### Scenario: Filter by category
-- **Given** a user is on the "Explore" page,
-- **When** they select the "Restaurant" category filter,
-- **Then** the list is updated to show only spots categorized as restaurants.
-
-### Requirement: View Spot Details
-
-Users must be able to view detailed information about a single spot.
-
-#### Scenario: Navigate to detail page
-- **Given** a user is viewing a list of spots,
-- **When** they click on a specific spot,
-- **Then** they are taken to a new page that displays detailed information for that spot,
-- **And** the information includes name, full description, photos, address, opening hours, and user reviews.
+#### Scenario: Switch Language
+- **Given** a visitor is on the website,
+- **When** they switch the language from Traditional Chinese to English,
+- **Then** the UI text and article content should be displayed in English.
